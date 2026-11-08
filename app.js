@@ -30,12 +30,16 @@ let voiceAbortController = null;
 let continuousMode = false;
 let continuousCycle = 0;
 let restartTimeout = null;
+let listeningSilence = false;
+let speechWatchdog = null;
 
 function stopContinuousMode(message = 'Conversa contínua terminada.') {
   continuousMode = false;
   continuousCycle++;
   clearTimeout(restartTimeout);
   restartTimeout = null;
+  clearTimeout(speechWatchdog);
+  speechWatchdog = null;
   $('continuousBtn').textContent = 'Iniciar conversa contínua';
   $('continuousBtn').classList.remove('recording');
   cancelRecording();
@@ -43,13 +47,22 @@ function stopContinuousMode(message = 'Conversa contínua terminada.') {
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   showStatus(message);
 }
+// A pending restart must never be lost while the previous request is finishing.
 function scheduleNextTurn(cycle) {
   if (!continuousMode || cycle !== continuousCycle || document.hidden) return;
   clearTimeout(restartTimeout);
   restartTimeout = setTimeout(() => {
     restartTimeout = null;
-    if (continuousMode && cycle === continuousCycle && !processingVoice && !document.hidden) recordVoice();
-  }, 350);
+    if (!continuousMode || cycle !== continuousCycle || document.hidden) return;
+    if (processingVoice || recorderStarting || (mediaRecorder && mediaRecorder.state !== 'inactive')) {
+      return scheduleNextTurn(cycle);
+    }
+    // Never restart while text-to-speech is still playing.
+    if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+      return scheduleNextTurn(cycle);
+    }
+    recordVoice();
+  }, 300);
 }
 function runNextAfterSpeech(cycle) {
   if (!continuousMode || cycle !== continuousCycle) return;
@@ -85,6 +98,7 @@ function monitorSilence(context) {
   let heardSpeech = false;
   let lastSound = performance.now();
   const started = lastSound;
+  listeningSilence = false;
   silenceTimer = setInterval(() => {
     analyser.getFloatTimeDomainData(samples);
     const rms = Math.sqrt(samples.reduce((sum, n) => sum + n * n, 0) / samples.length);
@@ -92,9 +106,10 @@ function monitorSilence(context) {
     if (rms > 0.012) { heardSpeech = true; lastSound = now; }
     if (heardSpeech && now - lastSound >= 1200) stopRecording();
     else if (!heardSpeech && now - started >= 10000) {
-      cancelRecording();
-      if (continuousMode) scheduleNextTurn(continuousCycle);
-      else showStatus('Não foi detetada voz. Toca em Gravar voz para tentar novamente.', true);
+      listeningSilence = true;
+      if (continuousMode) stopRecording();
+      else cancelRecording();
+      if (!continuousMode) showStatus('Não foi detetada voz. Toca em Gravar voz para tentar novamente.', true);
     }
   }, 100);
 }
@@ -196,14 +211,8 @@ async function recordVoice() {
   recorderStarting = true;
   const generation = ++recordingGeneration;
   try {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      // Prime synthesis inside the user's tap; iOS behaviour still needs device testing.
-      if ($('autoSpeak').checked) {
-        const prime = new SpeechSynthesisUtterance('');
-        window.speechSynthesis.speak(prime);
-      }
-    }
+    // Audio playback permission was enabled by the original user gesture.
+    // Do not cancel/prime speech again for each automatic cycle.
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) throw new Error('silence-unavailable');
     // Reuse the authorised microphone stream while conversation mode is active.
@@ -225,6 +234,8 @@ async function recordVoice() {
     recorder.addEventListener('error', () => { if (generation !== recordingGeneration) return; stopTracks(); if (continuousMode) stopContinuousMode('Erro ao gravar áudio.'); else showStatus('Erro ao gravar áudio.', true); });
     recorder.addEventListener('stop', async () => {
       const blob = new Blob(recordingChunks, { type: mime });
+      const onlySilence = listeningSilence;
+      listeningSilence = false;
       if (mediaRecorder === recorder) {
         mediaRecorder = null;
         clearSilenceMonitor();
@@ -236,7 +247,7 @@ async function recordVoice() {
         }
       }
       if (generation !== recordingGeneration) return;
-      if (!blob.size) { if (continuousMode) scheduleNextTurn(continuousCycle); else showStatus('Não foi captado áudio.', true); return; }
+      if (onlySilence || !blob.size) { if (continuousMode) scheduleNextTurn(continuousCycle); else showStatus('Não foi captado áudio.', true); return; }
       const form = new FormData();
       form.append('pair', pairSelect.value);
       form.append('audio', blob, mime.includes('mp4') ? 'voz.m4a' : mime.includes('ogg') ? 'voz.ogg' : 'voz.webm');
@@ -250,8 +261,10 @@ async function recordVoice() {
         const data = await fetchJson('/api/voice', { method: 'POST', body: form, signal: controller.signal });
         if (generation !== recordingGeneration || document.hidden) return;
         present(data);
-        if (continuousMode) runNextAfterSpeech(cycle);
-        else if ($('autoSpeak').checked && currentTranslation) speakTranslation();
+        if (continuousMode) {
+          processingVoice = false;
+          runNextAfterSpeech(cycle);
+        } else if ($('autoSpeak').checked && currentTranslation) speakTranslation();
       } catch (err) {
         if (generation === recordingGeneration && !document.hidden) {
           if (continuousMode) stopContinuousMode('Conversa interrompida: ' + err.message);
@@ -269,7 +282,9 @@ async function recordVoice() {
     recordBtn.classList.add('recording');
     recordHint.textContent = continuousMode ? 'A escutar… A tradução será reproduzida antes de voltar a escutar.' : 'A gravar… Uma pausa de 1,5 segundos termina a gravação e desliga o microfone.';
     showStatus('Podes falar numa das línguas do par escolhido.');
-    timer = setTimeout(stopRecording, 30000);
+    timer = setTimeout(() => {
+      if (!listeningSilence) stopRecording();
+    }, 30000);
   } catch (err) {
     stopTracks();
     if (continuousMode) stopContinuousMode('Não foi possível iniciar a gravação contínua. Verifica a permissão do microfone.');
@@ -292,36 +307,44 @@ $('copyBtn').addEventListener('click', async () => {
   }
 });
 function speakTranslation(onFinished = null) {
-  if (!currentTranslation) return showStatus('Não existe texto para ler.', true);
-  if (!('speechSynthesis' in window)) return showStatus('Leitura de voz indisponível neste dispositivo.', true);
+  if (!currentTranslation) {
+    if (onFinished) onFinished();
+    else showStatus('Não existe texto para ler.', true);
+    return;
+  }
+  if (!('speechSynthesis' in window)) {
+    if (onFinished) onFinished();
+    else showStatus('Leitura de voz indisponível neste dispositivo.', true);
+    return;
+  }
   window.speechSynthesis.cancel();
+  clearTimeout(speechWatchdog);
   const utterance = new SpeechSynthesisUtterance(currentTranslation);
   utterance.lang = langTag[targetLanguage] || 'pt-PT';
   utterance.rate = 0.94;
   const voices = window.speechSynthesis.getVoices();
   const preferred = voices.find(v => v.lang.toLowerCase() === utterance.lang.toLowerCase());
   if (preferred) utterance.voice = preferred;
-  let completed = false;
-  // iOS occasionally omits the speech-end event; do not stall the conversation forever.
-  const watchdogMs = Math.min(90000, Math.max(15000, currentTranslation.length * 180));
-  const watchdog = onFinished ? setTimeout(() => {
-    if (completed || !continuousMode) return;
-    window.speechSynthesis.cancel();
-    showStatus('A retomar a escuta após a leitura.');
-    finish();
-  }, watchdogMs) : null;
-  const finish = () => {
-    if (completed) return;
-    completed = true;
-    if (watchdog !== null) clearTimeout(watchdog);
+  let finished = false;
+  const finish = (failed = false) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(speechWatchdog);
+    speechWatchdog = null;
+    if (failed) showStatus('A leitura de voz falhou; a escuta será retomada.', true);
     if (onFinished) onFinished();
   };
-  utterance.onend = finish;
-  utterance.onerror = () => {
-    if (watchdog !== null) clearTimeout(watchdog);
-    if (continuousMode) stopContinuousMode('A leitura de voz falhou. Verifica as vozes do iPhone.');
-    else showStatus('A leitura automática não começou. Toca em Ouvir tradução; se necessário, verifica as vozes do iPhone.', true);
-  };
+  utterance.onend = () => finish();
+  utterance.onerror = () => finish(true);
+  // iOS Safari may never emit onend. Bound the wait and return to the mic.
+  if (onFinished) {
+    const maxMs = Math.min(60000, Math.max(7000, currentTranslation.length * 150));
+    speechWatchdog = setTimeout(() => {
+      if (finished) return;
+      window.speechSynthesis.cancel();
+      finish(true);
+    }, maxMs);
+  }
   window.speechSynthesis.speak(utterance);
   showStatus('A ler a tradução com a voz disponível no dispositivo.');
 }
