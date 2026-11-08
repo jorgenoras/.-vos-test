@@ -89,8 +89,8 @@ function monitorSilence(context) {
     analyser.getFloatTimeDomainData(samples);
     const rms = Math.sqrt(samples.reduce((sum, n) => sum + n * n, 0) / samples.length);
     const now = performance.now();
-    if (rms > 0.018) { heardSpeech = true; lastSound = now; }
-    if (heardSpeech && now - lastSound >= 1500) stopRecording();
+    if (rms > 0.012) { heardSpeech = true; lastSound = now; }
+    if (heardSpeech && now - lastSound >= 1200) stopRecording();
     else if (!heardSpeech && now - started >= 10000) {
       cancelRecording();
       if (continuousMode) scheduleNextTurn(continuousCycle);
@@ -168,8 +168,12 @@ function stopTracks() {
   recordHint.textContent = 'O microfone está desligado.';
 }
 function stopRecording() {
+  // Keep the microphone stream available between turns in continuous mode.
+  // Closing and re-opening getUserMedia for each phrase causes avoidable delays on iOS.
   if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-  stopTracks();
+  clearSilenceMonitor();
+  if (timer) { clearTimeout(timer); timer = null; }
+  if (!continuousMode) stopTracks();
 }
 function cancelRecording() {
   recordingGeneration++;
@@ -202,15 +206,16 @@ async function recordVoice() {
     }
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) throw new Error('silence-unavailable');
-    audioContext = new AudioContextClass();
-    await audioContext.resume();
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    // Reuse the authorised microphone stream while conversation mode is active.
+    if (!mediaStream || !mediaStream.getAudioTracks().some(track => track.readyState === 'live')) {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    }
     if (generation !== recordingGeneration || document.hidden) {
-      stream.getTracks().forEach(track => track.stop());
       if (generation === recordingGeneration) stopTracks();
       return;
     }
-    mediaStream = stream;
+    audioContext = new AudioContextClass();
+    await audioContext.resume();
     chunks = [];
     discardOnStop = false;
     const recorder = new MediaRecorder(mediaStream, { mimeType: mime });
@@ -220,7 +225,16 @@ async function recordVoice() {
     recorder.addEventListener('error', () => { if (generation !== recordingGeneration) return; stopTracks(); if (continuousMode) stopContinuousMode('Erro ao gravar áudio.'); else showStatus('Erro ao gravar áudio.', true); });
     recorder.addEventListener('stop', async () => {
       const blob = new Blob(recordingChunks, { type: mime });
-      if (mediaRecorder === recorder) { mediaRecorder = null; stopTracks(); }
+      if (mediaRecorder === recorder) {
+        mediaRecorder = null;
+        clearSilenceMonitor();
+        if (!continuousMode) stopTracks();
+        else {
+          recordBtn.textContent = 'Gravar voz';
+          recordBtn.classList.remove('recording');
+          recordHint.textContent = 'A processar a intervenção…';
+        }
+      }
       if (generation !== recordingGeneration) return;
       if (!blob.size) { if (continuousMode) scheduleNextTurn(continuousCycle); else showStatus('Não foi captado áudio.', true); return; }
       const form = new FormData();
@@ -288,9 +302,23 @@ function speakTranslation(onFinished = null) {
   const preferred = voices.find(v => v.lang.toLowerCase() === utterance.lang.toLowerCase());
   if (preferred) utterance.voice = preferred;
   let completed = false;
-  const finish = () => { if (completed) return; completed = true; if (onFinished) onFinished(); };
+  // iOS occasionally omits the speech-end event; do not stall the conversation forever.
+  const watchdogMs = Math.min(90000, Math.max(15000, currentTranslation.length * 180));
+  const watchdog = onFinished ? setTimeout(() => {
+    if (completed || !continuousMode) return;
+    window.speechSynthesis.cancel();
+    showStatus('A retomar a escuta após a leitura.');
+    finish();
+  }, watchdogMs) : null;
+  const finish = () => {
+    if (completed) return;
+    completed = true;
+    if (watchdog !== null) clearTimeout(watchdog);
+    if (onFinished) onFinished();
+  };
   utterance.onend = finish;
   utterance.onerror = () => {
+    if (watchdog !== null) clearTimeout(watchdog);
     if (continuousMode) stopContinuousMode('A leitura de voz falhou. Verifica as vozes do iPhone.');
     else showStatus('A leitura automática não começou. Toca em Ouvir tradução; se necessário, verifica as vozes do iPhone.', true);
   };
