@@ -1,0 +1,33 @@
+PONTE VOZ — ATUALIZAÇÃO V2
+
+Incluído:
+- Opção de manter a sessão neste dispositivo durante 30 dias a contar da entrada.
+- Sem a opção, a autenticação termina após oito horas.
+- Sair elimina a sessão. Não é guardado o código de acesso no telemóvel.
+- Um toque em Gravar voz inicia a captação; 1,5 segundos de pausa após voz termina a gravação.
+- Sem voz durante 10 segundos, cancela sem enviar áudio à API.
+- Limite de gravação: 30 segundos. Em ambiente ruidoso pode ser necessário Parar gravação.
+- Microfone desligado ao terminar, mudar de separador da aplicação ou sair da página.
+- Tradução após a gravação; tentativa de leitura automática, ativada por defeito.
+- Se o iPhone bloquear a leitura, usar Ouvir tradução. Não foi testado num iPhone real.
+- Abrir no WhatsApp passa a tradução em texto; escolher contacto e confirmar envio no WhatsApp.
+- Não traduz chamadas nem lê mensagens do WhatsApp automaticamente.
+- Sem alterações à chave OpenAI nem à configuração dos modelos no Render.
+
+PUBLICAÇÃO NO GITHUB / RENDER
+1. Extrair o ZIP.
+2. No repositório jorgenoras/ponte-voz, abrir Add file > Upload files.
+3. Arrastar os ficheiros DENTRO da pasta ponte-voz-main para a raiz do repositório.
+   Não carregar o ZIP nem a pasta exterior como uma subpasta.
+4. Confirmar as alterações na branch usada pelo Render.
+5. Se o deploy automático estiver ativo, aguardar o Render terminar o deploy.
+   Caso contrário, usar no Render Manual Deploy > Deploy latest commit.
+6. Abrir https://ponte-voz.onrender.com/ e atualizar a página.
+7. Introduzir o código uma vez com Manter sessão iniciada selecionado.
+   As sessões antigas podem precisar de uma nova entrada nesta atualização.
+
+VALIDAÇÃO
+16 testes locais do servidor aprovados com respostas de IA simuladas.
+Verificação JavaScript de sintaxe e testes simulados da pausa e ausência de voz aprovados.
+Nenhuma chamada real à API durante estes testes.
+Pendente: publicação e teste físico de microfone, leitura automática e WhatsApp no iPhone.

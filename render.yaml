@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ponte-voz
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ACCESS_CODE
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FORCE_HTTPS
+        value: '1'

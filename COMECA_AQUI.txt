@@ -1,0 +1,24 @@
+Atualização v2: começa pelo ficheiro ATUALIZACAO_V2.txt.
+
+PONTE VOZ - PRIMEIRO PASSO NO COMPUTADOR
+
+Ja foi criado o teu repositorio privado "ponte-voz" no GitHub.
+
+1. Descarrega o ficheiro Ponte_Voz_V1.zip enviado nesta conversa.
+2. No Windows: clica com o botao direito no ZIP e escolhe "Extrair tudo".
+3. Abre a pasta extraida "ponte-voz-v1".
+4. No GitHub, abre o teu repositorio privado "ponte-voz" e escolhe
+   "uploading an existing file". Arrasta os ficheiros DE DENTRO da pasta
+   extraida, nao arrastes o ZIP.
+5. Confirma que entre os ficheiros aparecem: app.py, index.html,
+   app.js, styles.css, requirements.txt e render.yaml.
+6. So depois clica em "Commit changes".
+
+O codigo NAO inclui palavras-passe ou chaves reais. Nao envies
+palavras-passe, nem a chave da API, por ChatGPT ou GitHub.
+
+O passo seguinte e ligar o repositorio ao Render como Web Service.
+A aplicacao ainda NAO esta online: falta configurar Render e uma chave
+OpenAI API. A traducao real e a gravacao no iPhone ainda nao foram testadas.
+
+LE O README.md para o procedimento completo e os limites de privacidade.

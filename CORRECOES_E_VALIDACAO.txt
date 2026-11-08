@@ -1,0 +1,19 @@
+PONTE VOZ - PACOTE CORRIGIDO (8 NOV 2026)
+
+Alteracoes:
+1. Valida a direcao da traducao e rejeita resultados claramente na lingua errada; deixa de indicar sucesso falso se continuar em cirilico quando o destino e portugues.
+2. Rejeita traducao vazia e resposta inconsistente do servico.
+3. Melhora o controlo de ciclo de vida do gravador: cada sessao usa os seus proprios blocos de audio, e gravacoes antigas nao devem substituir o estado de uma nova.
+4. Ao cancelar a conversa continua, aborta pedidos pendentes do navegador, volta a libertar o botao manual e invalida respostas antigas. Um pedido ja recebido pelo servidor pode, contudo, continuar a ser faturado pelo fornecedor.
+5. Modelos predefinidos ajustados para gpt-5-mini (traducao) e gpt-4o-mini-transcribe (transcricao). Se o Render tem variaveis TRANSLATION_MODEL ou TRANSCRIPTION_MODEL definidas, estas continuam a ter prioridade.
+
+Verificacoes locais:
+- 21 testes Python concluídos sem falhas (simulacoes sem chamadas API pagas).
+- Sintaxe JavaScript verificada com node --check.
+- Compilacao do Python sem erros.
+
+Limites: nao foi testado no iPhone/Safari real nem feita uma chamada OpenAI real.
+A verificacao por alfabeto e apenas um filtro para erros evidentes, nao comprova qualidade semantica e pode nao detetar todas as falhas ou tratar bem entradas mistas.
+A versao publicada no GitHub/Render NAO foi alterada.
+
+Para publicar, rever antes o diff e guardar um backup. Fazer teste controlado em PT->UA e UA->PT, parar e reiniciar conversa continua, verificar botao manual e consumo de API.
