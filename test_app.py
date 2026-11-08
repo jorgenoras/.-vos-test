@@ -165,3 +165,36 @@ class PonteVozTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class MultilingualTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        self.client.post('/login', data={'access_code':'codigo-testes-123456'})
+    def tearDown(self): self.client.close()
+    def test_languages_in_interface(self):
+        page = self.client.get('/').text
+        self.assertIn('value="en"', page)
+        self.assertIn('value="ko"', page)
+    def test_invalid_pair_rejected(self):
+        self.assertEqual(self.client.post('/api/translate', json={'text':'Bom dia','pair':'xx'}).status_code,400)
+        self.assertEqual(self.client.post('/api/voice', data={'pair':'xx'},files={'audio':('a.m4a',b'test','audio/mp4')}).status_code,400)
+    def test_english_portuguese_both_directions(self):
+        self.assertEqual(validate_translation('Bom dia',{'detected_language':'pt','target_language':'en','translation':'Good morning'},'en')['translation'],'Good morning')
+        self.assertEqual(validate_translation('Good morning',{'detected_language':'en','target_language':'pt','translation':'Bom dia'},'en')['translation'],'Bom dia')
+    def test_korean_portuguese_both_directions(self):
+        self.assertEqual(validate_translation('Bom dia',{'detected_language':'pt','target_language':'ko','translation':'좋은 아침'},'ko')['target_language'],'ko')
+        self.assertEqual(validate_translation('안녕하세요',{'detected_language':'ko','target_language':'pt','translation':'Olá'},'ko')['target_language'],'pt')
+    def test_cross_pair_rejected(self):
+        with self.assertRaises(ValueError):
+            validate_translation('Hello',{'detected_language':'en','target_language':'pt','translation':'Olá'},'ko')
+    def test_pair_forwarded_text(self):
+        with patch('app.translate_text',return_value={'detected_language':'pt','target_language':'ko','translation':'안녕'}) as m:
+            r=self.client.post('/api/translate',json={'text':'Olá','pair':'ko'})
+        self.assertEqual(r.status_code,200)
+        m.assert_called_once_with('Olá','ko')
+    def test_pair_forwarded_voice(self):
+        with patch('app.transcribe_audio',return_value='Hello'),patch('app.translate_text',return_value={'detected_language':'en','target_language':'pt','translation':'Olá'}) as m:
+            r=self.client.post('/api/voice',data={'pair':'en'},files={'audio':('voz.m4a',b'fake','audio/mp4')})
+        self.assertEqual(r.status_code,200)
+        m.assert_called_once_with('Hello','en')

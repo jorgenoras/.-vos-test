@@ -1,0 +1,4 @@
+VERSAO DE TESTE - NAO PUBLICAR EM PRODUCAO
+Pares: PT-UA, PT-EN, PT-KO. Deteccao automatica limitada ao par selecionado.
+A sintaxe e testes locais nao certificam traducoes reais, pronuncia, reconhecimento de voz nem Safari no iPhone.
+Conservar deployment atual Live no Render. Validar em ambiente separado apenas apos verificar custos.

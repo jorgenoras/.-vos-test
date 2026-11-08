@@ -12,15 +12,15 @@
 <body>
   <main class="shell">
     <header class="header">
-      <div class="identity"><span class="brand-mark" aria-hidden="true">↔</span><div><div class="brand">Ponte Voz</div><div class="subtitle">PORTUGUÊS · УКРАЇНСЬКА</div></div></div>
+      <div class="identity"><span class="brand-mark" aria-hidden="true">↔</span><div><div class="brand">Ponte Voz</div><div class="subtitle">PORTUGUÊS · УКРАЇНСЬКА · ENGLISH · 한국어</div></div></div>
       <form method="post" action="/logout"><button type="submit" class="link-btn">Sair</button></form>
     </header>
 
     <section class="hero" aria-label="Apresentação">
       <div class="eyebrow"><span class="pulse"></span> VERSÃO 2.1 · TESTE CONTÍNUO · INTERFACE REVISTA</div>
       <h1>Fala na tua língua.<br><span>Compreende a outra.</span></h1>
-      <p>Deteção automática de português e ucraniano. Mensagens e intervenções de voz curtas, uma de cada vez.</p>
-      <div class="language-pair"><span>Português (Portugal)</span><span class="swap">⇄</span><span>Українська</span></div>
+      <p>Tradução bidirecional no par escolhido. Mensagens e intervenções de voz curtas, uma de cada vez.</p>
+      <div class="language-pair"><label for="pairSelect">Par de idiomas: </label><select id="pairSelect" aria-label="Selecionar par de idiomas"><option value="uk">Português ↔ Ucraniano</option><option value="en">Português ↔ Inglês</option><option value="ko">Português ↔ Coreano</option></select></div>
     </section>
 
     <section class="panel" aria-label="Tradutor">
@@ -30,7 +30,7 @@
       </div>
       <div id="textPanel" role="tabpanel" aria-labelledby="tabText">
         <label class="field-label" for="sourceText">Mensagem original</label>
-        <textarea id="sourceText" placeholder="Escreve aqui em português ou ucraniano..." maxlength="3000" rows="6"></textarea>
+        <textarea id="sourceText" placeholder="Escreve em qualquer uma das línguas do par escolhido..." maxlength="3000" rows="6"></textarea>
         <div class="field-footer"><span>A língua é detetada automaticamente</span><span id="charCount">0 / 3000</span></div>
         <button id="translateBtn" type="button" class="button primary full">Traduzir mensagem →</button>
       </div>

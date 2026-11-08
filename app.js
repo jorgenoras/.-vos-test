@@ -11,6 +11,10 @@ const recordBtn = $('recordBtn');
 const recordHint = $('recordHint');
 let currentTranslation = '';
 let targetLanguage = 'pt';
+const pairSelect = $('pairSelect');
+const langTag = {pt:'pt-PT',uk:'uk-UA',en:'en-US',ko:'ko-KR'};
+const langShort = {pt:'PT',uk:'UA',en:'EN',ko:'KO'};
+pairSelect.addEventListener('change', () => { if (continuousMode) stopContinuousMode(); else cancelRecording(); resultPanel.hidden = true; currentTranslation = ''; showStatus('Par de idiomas alterado.'); });
 let mediaRecorder = null;
 let mediaStream = null;
 let chunks = [];
@@ -129,11 +133,11 @@ function present(data) {
   $('originalOutput').textContent = data.original || '';
   $('translatedOutput').textContent = data.translation || '';
   targetLanguage = data.target_language || 'pt';
-  $('translatedOutput').setAttribute('lang', targetLanguage === 'uk' ? 'uk-UA' : 'pt-PT');
-  $('direction').textContent = data.detected_language === 'pt' ? 'PT → UA' : data.detected_language === 'uk' ? 'UA → PT' : 'Língua não detetada';
+  $('translatedOutput').setAttribute('lang', langTag[targetLanguage] || 'pt-PT');
+  $('direction').textContent = data.detected_language && data.detected_language !== 'unknown' ? `${langShort[data.detected_language]} → ${langShort[targetLanguage]}` : 'Língua não detetada';
   currentTranslation = data.translation || '';
   resultPanel.hidden = false;
-  showStatus(currentTranslation ? 'Tradução concluída.' : 'Não foi possível detetar português ou ucraniano.');
+  showStatus(currentTranslation ? 'Tradução concluída.' : 'Não foi possível detetar uma língua do par escolhido.');
 }
 async function translate() {
   const text = sourceText.value.trim();
@@ -141,7 +145,7 @@ async function translate() {
   $('translateBtn').disabled = true;
   showStatus('A traduzir...');
   try {
-    present(await fetchJson('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }));
+    present(await fetchJson('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, pair: pairSelect.value }) }));
   } catch (err) { showStatus(err.message, true); }
   finally { $('translateBtn').disabled = false; }
 }
@@ -220,6 +224,7 @@ async function recordVoice() {
       if (generation !== recordingGeneration) return;
       if (!blob.size) { if (continuousMode) scheduleNextTurn(continuousCycle); else showStatus('Não foi captado áudio.', true); return; }
       const form = new FormData();
+      form.append('pair', pairSelect.value);
       form.append('audio', blob, mime.includes('mp4') ? 'voz.m4a' : mime.includes('ogg') ? 'voz.ogg' : 'voz.webm');
       showStatus('A reconhecer e traduzir a voz...');
       processingVoice = true;
@@ -249,7 +254,7 @@ async function recordVoice() {
     recordBtn.textContent = 'Parar gravação';
     recordBtn.classList.add('recording');
     recordHint.textContent = continuousMode ? 'A escutar… A tradução será reproduzida antes de voltar a escutar.' : 'A gravar… Uma pausa de 1,5 segundos termina a gravação e desliga o microfone.';
-    showStatus('Podes falar agora em português ou ucraniano.');
+    showStatus('Podes falar numa das línguas do par escolhido.');
     timer = setTimeout(stopRecording, 30000);
   } catch (err) {
     stopTracks();
@@ -277,7 +282,7 @@ function speakTranslation(onFinished = null) {
   if (!('speechSynthesis' in window)) return showStatus('Leitura de voz indisponível neste dispositivo.', true);
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(currentTranslation);
-  utterance.lang = targetLanguage === 'uk' ? 'uk-UA' : 'pt-PT';
+  utterance.lang = langTag[targetLanguage] || 'pt-PT';
   utterance.rate = 0.94;
   const voices = window.speechSynthesis.getVoices();
   const preferred = voices.find(v => v.lang.toLowerCase() === utterance.lang.toLowerCase());
